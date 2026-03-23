@@ -1,0 +1,38 @@
+{
+  "base_url": {
+    "description": "OpenList 服务地址，例如 https://pan.example.com",
+    "type": "string",
+    "default": ""
+  },
+  "token": {
+    "description": "OpenList API Token",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true
+  },
+  "root_path": {
+    "description": "机器人允许访问的根目录",
+    "type": "string",
+    "default": "/"
+  },
+  "timeout_seconds": {
+    "description": "OpenList 请求超时时间，单位秒",
+    "type": "int",
+    "default": 15
+  },
+  "default_per_page": {
+    "description": "调用 OpenList 列表接口时每页请求条数",
+    "type": "int",
+    "default": 100
+  },
+  "max_list_items": {
+    "description": "聊天中单次最多展示多少个目录条目",
+    "type": "int",
+    "default": 20
+  },
+  "admin_only": {
+    "description": "是否仅允许管理员使用该插件命令",
+    "type": "bool",
+    "default": true
+  }
+}

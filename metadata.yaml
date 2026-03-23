@@ -1,0 +1,7 @@
+name: astrbot_plugin_openlist_browser
+display_name: OpenList 浏览器
+author: Codex
+desc: 通过 AstrBot 读取自建 OpenList 网盘中的目录和文件信息。
+version: 0.1.0
+repo: ""
+astrbot_version: ">=4.16,<5"
