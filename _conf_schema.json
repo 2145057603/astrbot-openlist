@@ -46,28 +46,33 @@
     "default": 20
   },
   "browse_whitelist_only": {
-    "description": "是否仅允许白名单用户使用浏览命令(ls/info)",
+    "description": "是否仅白名单可用浏览命令(ls/info)",
     "type": "bool",
     "default": false
   },
   "upload_whitelist_only": {
-    "description": "是否仅允许白名单用户使用上传命令(upload/upload-url)",
+    "description": "是否仅白名单可用上传命令(upload/upload-url)",
     "type": "bool",
     "default": true
   },
-  "browse_user_ids": {
-    "description": "可使用浏览命令的 QQ 号，多个用英文逗号分隔",
+  "authorization_code": {
+    "description": "口令授权使用的密码，配合 /网盘 授权 <口令> 使用",
     "type": "string",
+    "default": ""
+  },
+  "browse_user_ids": {
+    "description": "可使用浏览命令的 QQ 号，多个可用逗号、空格或换行分隔",
+    "type": "text",
     "default": ""
   },
   "upload_user_ids": {
-    "description": "可使用上传命令的 QQ 号，多个用英文逗号分隔",
-    "type": "string",
+    "description": "可使用上传命令的 QQ 号，多个可用逗号、空格或换行分隔",
+    "type": "text",
     "default": ""
   },
   "admin_user_ids": {
-    "description": "插件管理员 QQ 号，多个用英文逗号分隔",
-    "type": "string",
-    "default": ""
+    "description": "插件管理员 QQ 号，多个可用逗号、空格或换行分隔。2145057603 默认始终拥有最高权限",
+    "type": "text",
+    "default": "2145057603"
   }
 }

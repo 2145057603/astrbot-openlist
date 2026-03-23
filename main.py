@@ -27,7 +27,7 @@ from .openlist_client import (
     "openlist_browser",
     "Codex",
     "读取 OpenList 网盘目录和文件信息",
-    "0.2.1",
+    "0.3.0",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):
@@ -49,6 +49,7 @@ class OpenListBrowserPlugin(Star):
         self._max_upload_bytes = max(1, int(config.get("max_upload_mb", 20) or 20)) * 1024 * 1024
         self._browse_whitelist_only = bool(config.get("browse_whitelist_only", False))
         self._upload_whitelist_only = bool(config.get("upload_whitelist_only", True))
+        self._authorization_code = str(config.get("authorization_code", "")).strip()
         self._browse_user_ids = self._parse_user_ids(config.get("browse_user_ids", ""))
         self._upload_user_ids = self._parse_user_ids(config.get("upload_user_ids", ""))
         self._admin_user_ids = self._parse_user_ids(config.get("admin_user_ids", ""))
@@ -68,7 +69,7 @@ class OpenListBrowserPlugin(Star):
         tokens = raw.split()
         if len(tokens) < 2:
             yield event.plain_result(
-                "用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]、/网盘 whoami"
+                "用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]、/网盘 授权 <口令>、/网盘 whoami"
             )
             return
 
@@ -110,6 +111,11 @@ class OpenListBrowserPlugin(Star):
                 yield result
             return
 
+        if action in {"授权", "auth", "authorize"}:
+            async for result in self._handle_authorize(event, arg):
+                yield result
+            return
+
         if action in {"whoami", "who"}:
             user_id = self._extract_user_id(event)
             browse_allowed = self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids)
@@ -123,7 +129,7 @@ class OpenListBrowserPlugin(Star):
             )
             return
 
-        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、whoami")
+        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、授权、whoami")
 
     async def _handle_ls(self, event: AstrMessageEvent, user_path: str):
         try:
@@ -216,8 +222,46 @@ class OpenListBrowserPlugin(Star):
             logger.warning("OpenList upload-url failed: %s", exc)
             yield event.plain_result(self._friendly_error(exc))
 
+    async def _handle_authorize(self, event: AstrMessageEvent, arg: str):
+        user_id = self._extract_user_id(event)
+        if not user_id:
+            yield event.plain_result("未能识别当前 QQ 号，暂时无法授权。")
+            return
+        if user_id in self._admin_user_ids:
+            yield event.plain_result("你已经是插件管理员，无需再次授权。")
+            return
+        if not self._authorization_code:
+            yield event.plain_result("当前未设置授权口令，请先在插件配置中填写 authorization_code。")
+            return
+        if not arg:
+            yield event.plain_result("用法：/网盘 授权 <口令>")
+            return
+        if arg.strip() != self._authorization_code:
+            yield event.plain_result("授权口令不正确。")
+            return
+
+        changed = False
+        if user_id not in self._browse_user_ids:
+            self._browse_user_ids.add(user_id)
+            changed = True
+        if user_id not in self._upload_user_ids:
+            self._upload_user_ids.add(user_id)
+            changed = True
+
+        self.config["browse_user_ids"] = self._join_user_ids(self._browse_user_ids)
+        self.config["upload_user_ids"] = self._join_user_ids(self._upload_user_ids)
+        self.config.save_config()
+
+        if changed:
+            yield event.plain_result("授权成功，已将你加入浏览和上传白名单，并同步保存到插件设置。")
+        else:
+            yield event.plain_result("你已经在白名单中，无需重复授权。")
+
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())
+
+    def _join_user_ids(self, values: set[str]) -> str:
+        return ",".join(sorted(values, key=lambda x: (len(x), x)))
 
     def _has_permission(self, event: AstrMessageEvent, whitelist_only: bool, allowed_users: set[str]) -> bool:
         if not whitelist_only:
