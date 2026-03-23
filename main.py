@@ -46,9 +46,11 @@ class OpenListBrowserPlugin(Star):
         self._upload_enabled = bool(config.get("upload_enabled", True))
         self._allow_url_upload = bool(config.get("allow_url_upload", True))
         self._max_upload_bytes = max(1, int(config.get("max_upload_mb", 20) or 20)) * 1024 * 1024
-        legacy_admin_only = bool(config.get("admin_only", True))
-        self._browse_admin_only = bool(config.get("browse_admin_only", legacy_admin_only))
-        self._upload_admin_only = bool(config.get("upload_admin_only", legacy_admin_only))
+        self._browse_whitelist_only = bool(config.get("browse_whitelist_only", False))
+        self._upload_whitelist_only = bool(config.get("upload_whitelist_only", True))
+        self._browse_user_ids = self._parse_user_ids(config.get("browse_user_ids", ""))
+        self._upload_user_ids = self._parse_user_ids(config.get("upload_user_ids", ""))
+        self._admin_user_ids = self._parse_user_ids(config.get("admin_user_ids", ""))
 
     async def terminate(self):
         await self._client.close()
@@ -70,16 +72,16 @@ class OpenListBrowserPlugin(Star):
         arg = " ".join(tokens[2:]).strip()
 
         if action == "ls":
-            if not self._has_permission(event, self._browse_admin_only):
-                yield event.plain_result("当前浏览命令仅允许管理员使用。")
+            if not self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids):
+                yield event.plain_result("当前浏览命令仅允许白名单用户使用。")
                 return
             async for result in self._handle_ls(event, arg):
                 yield result
             return
 
         if action == "info":
-            if not self._has_permission(event, self._browse_admin_only):
-                yield event.plain_result("当前浏览命令仅允许管理员使用。")
+            if not self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids):
+                yield event.plain_result("当前浏览命令仅允许白名单用户使用。")
                 return
             if not arg:
                 yield event.plain_result("用法：/网盘 info <路径>")
@@ -89,16 +91,16 @@ class OpenListBrowserPlugin(Star):
             return
 
         if action == "upload":
-            if not self._has_permission(event, self._upload_admin_only):
-                yield event.plain_result("当前上传命令仅允许管理员使用。")
+            if not self._has_permission(event, self._upload_whitelist_only, self._upload_user_ids):
+                yield event.plain_result("当前上传命令仅允许白名单用户使用。")
                 return
             async for result in self._handle_upload(event, arg):
                 yield result
             return
 
         if action in {"upload-url", "upload_url"}:
-            if not self._has_permission(event, self._upload_admin_only):
-                yield event.plain_result("当前上传命令仅允许管理员使用。")
+            if not self._has_permission(event, self._upload_whitelist_only, self._upload_user_ids):
+                yield event.plain_result("当前上传命令仅允许白名单用户使用。")
                 return
             async for result in self._handle_upload_url(event, arg):
                 yield result
@@ -200,10 +202,61 @@ class OpenListBrowserPlugin(Star):
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())
 
-    def _has_permission(self, event: AstrMessageEvent, admin_only: bool) -> bool:
-        if not admin_only:
+    def _has_permission(self, event: AstrMessageEvent, whitelist_only: bool, allowed_users: set[str]) -> bool:
+        if not whitelist_only:
             return True
-        return self._is_admin_event(event)
+        user_id = self._extract_user_id(event)
+        if not user_id:
+            return False
+        return user_id in allowed_users or user_id in self._admin_user_ids
+
+    def _parse_user_ids(self, raw_value) -> set[str]:
+        if raw_value is None:
+            return set()
+        if isinstance(raw_value, (list, tuple, set)):
+            return {str(item).strip() for item in raw_value if str(item).strip()}
+        text = str(raw_value).strip()
+        if not text:
+            return set()
+        return {part.strip() for part in text.split(",") if part.strip()}
+
+    def _extract_user_id(self, event: AstrMessageEvent) -> str:
+        for attr in ("user_id", "sender_id"):
+            value = getattr(event, attr, None)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+
+        sender = getattr(event, "sender", None)
+        if sender is not None:
+            if isinstance(sender, dict):
+                for key in ("user_id", "id", "qq"):
+                    value = sender.get(key)
+                    if value is not None and str(value).strip():
+                        return str(value).strip()
+            else:
+                for key in ("user_id", "id", "qq"):
+                    value = getattr(sender, key, None)
+                    if value is not None and str(value).strip():
+                        return str(value).strip()
+
+        message_obj = getattr(event, "message_obj", None)
+        if message_obj is not None:
+            if isinstance(message_obj, dict):
+                sender_info = message_obj.get("sender")
+                if isinstance(sender_info, dict):
+                    for key in ("user_id", "id", "qq"):
+                        value = sender_info.get(key)
+                        if value is not None and str(value).strip():
+                            return str(value).strip()
+            else:
+                sender_info = getattr(message_obj, "sender", None)
+                if isinstance(sender_info, dict):
+                    for key in ("user_id", "id", "qq"):
+                        value = sender_info.get(key)
+                        if value is not None and str(value).strip():
+                            return str(value).strip()
+
+        return ""
 
     def _extract_upload_source(self, event: AstrMessageEvent) -> dict | None:
         message_obj = getattr(event, "message_obj", None)
@@ -333,54 +386,6 @@ class OpenListBrowserPlugin(Star):
         parsed = urlparse(url)
         name = Path(parsed.path).name
         return name or "upload.bin"
-
-    def _is_admin_event(self, event: AstrMessageEvent) -> bool:
-        for attr in ("is_admin", "is_super_admin"):
-            value = getattr(event, attr, None)
-            if callable(value):
-                try:
-                    if value():
-                        return True
-                except TypeError:
-                    pass
-            elif value:
-                return True
-
-        role = getattr(event, "role", None)
-        if isinstance(role, str) and role.lower() in {"admin", "administrator", "owner"}:
-            return True
-
-        sender = getattr(event, "sender", None)
-        if sender is not None:
-            for attr in ("role", "permission"):
-                value = getattr(sender, attr, None)
-                if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
-                    return True
-
-            if isinstance(sender, dict):
-                for key in ("role", "permission"):
-                    value = sender.get(key)
-                    if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
-                        return True
-
-        message_obj = getattr(event, "message_obj", None)
-        if message_obj is not None:
-            if isinstance(message_obj, dict):
-                sender_info = message_obj.get("sender")
-                if isinstance(sender_info, dict):
-                    for key in ("role", "permission"):
-                        value = sender_info.get(key)
-                        if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
-                            return True
-            else:
-                sender_info = getattr(message_obj, "sender", None)
-                if isinstance(sender_info, dict):
-                    for key in ("role", "permission"):
-                        value = sender_info.get(key)
-                        if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
-                            return True
-
-        return False
 
     def _friendly_error(self, exc: Exception) -> str:
         if isinstance(exc, InvalidPathError):

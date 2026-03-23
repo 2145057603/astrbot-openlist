@@ -8,7 +8,9 @@
   "upload_enabled": true,
   "allow_url_upload": true,
   "max_upload_mb": 20,
-  "browse_admin_only": false,
-  "upload_admin_only": true,
-  "admin_only": true
+  "browse_whitelist_only": false,
+  "upload_whitelist_only": true,
+  "browse_user_ids": "12345678,87654321",
+  "upload_user_ids": "12345678",
+  "admin_user_ids": "12345678"
 }

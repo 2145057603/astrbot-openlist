@@ -45,19 +45,29 @@
     "type": "int",
     "default": 20
   },
-  "browse_admin_only": {
-    "description": "是否仅允许管理员使用浏览命令(ls/info)",
+  "browse_whitelist_only": {
+    "description": "是否仅允许白名单用户使用浏览命令(ls/info)",
     "type": "bool",
     "default": false
   },
-  "upload_admin_only": {
-    "description": "是否仅允许管理员使用上传命令(upload/upload-url)",
+  "upload_whitelist_only": {
+    "description": "是否仅允许白名单用户使用上传命令(upload/upload-url)",
     "type": "bool",
     "default": true
   },
-  "admin_only": {
-    "description": "旧版总权限开关，保留兼容用途",
-    "type": "bool",
-    "default": true
+  "browse_user_ids": {
+    "description": "可使用浏览命令的 QQ 号，多个用英文逗号分隔",
+    "type": "string",
+    "default": ""
+  },
+  "upload_user_ids": {
+    "description": "可使用上传命令的 QQ 号，多个用英文逗号分隔",
+    "type": "string",
+    "default": ""
+  },
+  "admin_user_ids": {
+    "description": "插件管理员 QQ 号，多个用英文逗号分隔",
+    "type": "string",
+    "default": ""
   }
 }

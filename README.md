@@ -28,9 +28,11 @@
 - `upload_enabled`：是否启用上传功能
 - `allow_url_upload`：是否允许通过 URL 上传
 - `max_upload_mb`：单文件最大上传大小
-- `browse_admin_only`：是否仅管理员可用浏览命令
-- `upload_admin_only`：是否仅管理员可用上传命令
-- `admin_only`：旧版总权限开关，保留兼容用途
+- `browse_whitelist_only`：是否仅白名单可用浏览命令
+- `upload_whitelist_only`：是否仅白名单可用上传命令
+- `browse_user_ids`：浏览白名单 QQ 号，英文逗号分隔
+- `upload_user_ids`：上传白名单 QQ 号，英文逗号分隔
+- `admin_user_ids`：插件管理员 QQ 号，英文逗号分隔
 
 ## 推荐配置
 
@@ -45,22 +47,25 @@
   "upload_enabled": true,
   "allow_url_upload": true,
   "max_upload_mb": 20,
-  "browse_admin_only": false,
-  "upload_admin_only": true,
-  "admin_only": true
+  "browse_whitelist_only": false,
+  "upload_whitelist_only": true,
+  "browse_user_ids": "12345678,87654321",
+  "upload_user_ids": "12345678",
+  "admin_user_ids": "12345678"
 }
 ```
 
 ## 权限说明
 
-- `ls` 和 `info` 受 `browse_admin_only` 控制
-- `upload` 和 `upload-url` 受 `upload_admin_only` 控制
-- 如果你希望所有人都能浏览，但只有管理能上传，推荐：
+- `ls` 和 `info` 受 `browse_whitelist_only` 控制
+- `upload` 和 `upload-url` 受 `upload_whitelist_only` 控制
+- 如果你希望所有人都能浏览，但只有白名单能上传，推荐：
 
 ```json
 {
-  "browse_admin_only": false,
-  "upload_admin_only": true
+  "browse_whitelist_only": false,
+  "upload_whitelist_only": true,
+  "upload_user_ids": "你的QQ号,你朋友QQ号"
 }
 ```
 
