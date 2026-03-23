@@ -1,9 +1,14 @@
-{
+﻿{
   "base_url": "https://pan.example.com",
   "token": "your-openlist-token",
   "root_path": "/mods",
   "timeout_seconds": 15,
   "default_per_page": 100,
   "max_list_items": 20,
+  "upload_enabled": true,
+  "allow_url_upload": true,
+  "max_upload_mb": 20,
+  "browse_admin_only": false,
+  "upload_admin_only": true,
   "admin_only": true
 }

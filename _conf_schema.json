@@ -1,4 +1,4 @@
-{
+﻿{
   "base_url": {
     "description": "OpenList 服务地址，例如 https://pan.example.com",
     "type": "string",
@@ -30,8 +30,33 @@
     "type": "int",
     "default": 20
   },
+  "upload_enabled": {
+    "description": "是否启用上传功能",
+    "type": "bool",
+    "default": true
+  },
+  "allow_url_upload": {
+    "description": "是否允许通过 URL 抓取后上传",
+    "type": "bool",
+    "default": true
+  },
+  "max_upload_mb": {
+    "description": "单文件最大上传大小，单位 MB",
+    "type": "int",
+    "default": 20
+  },
+  "browse_admin_only": {
+    "description": "是否仅允许管理员使用浏览命令(ls/info)",
+    "type": "bool",
+    "default": false
+  },
+  "upload_admin_only": {
+    "description": "是否仅允许管理员使用上传命令(upload/upload-url)",
+    "type": "bool",
+    "default": true
+  },
   "admin_only": {
-    "description": "是否仅允许管理员使用该插件命令",
+    "description": "旧版总权限开关，保留兼容用途",
     "type": "bool",
     "default": true
   }

@@ -1,15 +1,17 @@
-# astrbot_plugin_openlist_browser
+﻿# astrbot-openlist
 
-通过 AstrBot 读取自建 OpenList 网盘中的目录和文件信息。
+通过 AstrBot 读取自建 OpenList 网盘中的目录、文件信息，并支持基础上传。
 
 ## 当前功能
 
 - `/网盘 ls [路径]`：列出目录内容
 - `/网盘 info <路径>`：查看文件或目录详情
+- `/网盘 upload [目录]`：把同一条消息中的附件或图片上传到 OpenList
+- `/网盘 upload-url <文件URL> [目录]`：抓取远程文件后上传到 OpenList
 
 ## 接入步骤
 
-1. 将整个插件目录放入 AstrBot 的插件目录中。
+1. 将整个仓库作为 AstrBot 插件安装。
 2. 安装依赖 `httpx`。
 3. 在 AstrBot 插件配置中填写 `base_url`、`token`、`root_path` 等配置项。
 4. 重载插件或重启 AstrBot。
@@ -23,16 +25,14 @@
 - `timeout_seconds`：请求超时秒数
 - `default_per_page`：OpenList 列表接口请求条数
 - `max_list_items`：聊天中展示的最大条目数
-- `admin_only`：是否仅管理员可用
+- `upload_enabled`：是否启用上传功能
+- `allow_url_upload`：是否允许通过 URL 上传
+- `max_upload_mb`：单文件最大上传大小
+- `browse_admin_only`：是否仅管理员可用浏览命令
+- `upload_admin_only`：是否仅管理员可用上传命令
+- `admin_only`：旧版总权限开关，保留兼容用途
 
 ## 推荐配置
-
-- `base_url`：建议填写外部可直接访问的 HTTPS 地址
-- `token`：建议专门为机器人准备一个只读 token
-- `root_path`：建议限制到业务目录，例如 `/mods`
-- `admin_only`：初期建议保持 `true`
-
-示例：
 
 ```json
 {
@@ -42,7 +42,25 @@
   "timeout_seconds": 15,
   "default_per_page": 100,
   "max_list_items": 20,
+  "upload_enabled": true,
+  "allow_url_upload": true,
+  "max_upload_mb": 20,
+  "browse_admin_only": false,
+  "upload_admin_only": true,
   "admin_only": true
+}
+```
+
+## 权限说明
+
+- `ls` 和 `info` 受 `browse_admin_only` 控制
+- `upload` 和 `upload-url` 受 `upload_admin_only` 控制
+- 如果你希望所有人都能浏览，但只有管理能上传，推荐：
+
+```json
+{
+  "browse_admin_only": false,
+  "upload_admin_only": true
 }
 ```
 
@@ -50,59 +68,32 @@
 
 ```text
 /网盘 ls
-/网盘 ls 卡牌
-/网盘 ls 图片/机器人
+/网盘 ls 图片
 /网盘 info mod.zip
-/网盘 info 图片/机器人/说明.txt
+/网盘 upload
+/网盘 upload 图片
+/网盘 upload-url https://example.com/mod.zip
+/网盘 upload-url https://example.com/mod.zip 图片
 ```
 
-## 返回示例
+## 上传说明
 
-目录列表：
-
-```text
-目录：/mods
-共 4 项，显示前 4 项
-
-[DIR] 卡牌
-[DIR] 图片
-[FILE] mod.zip  18.4 MB
-[FILE] 说明.txt  3.2 KB
-```
-
-文件详情：
-
-```text
-名称：mod.zip
-类型：文件
-路径：/mods/mod.zip
-大小：18.4 MB
-修改时间：2026-03-23 22:18:05
-```
+- `upload`：请把命令和要上传的图片或文件放在同一条消息里。
+- `upload-url`：插件会先下载 URL 对应文件，再上传到 OpenList。
+- 第一版上传会保留原文件名，不支持命令里直接改文件名。
+- 如果当前 QQ 适配器没有把附件信息传给插件，建议先用 `upload-url` 跑通。
 
 ## 常见问题
 
-- 提示“插件未完成配置”
-  说明 `base_url` 或 `token` 为空。
-- 提示“网盘服务认证失败”
-  说明 token 无效、过期，或 OpenList 侧不接受当前认证方式。
-- 提示“无法连接到 OpenList 服务”
-  说明 AstrBot 所在机器无法访问你的 OpenList 地址，或反向代理、证书、端口有问题。
-- 提示“目标路径不存在”
-  说明查询路径写错，或该路径不在 `root_path` 之下。
-- 提示“路径不能包含 ..”
-  这是插件的安全限制，用来防止越界访问。
-
-## 联调建议
-
-1. 先把 `root_path` 配成一个确定存在的小目录。
-2. 先在 OpenList 后台确认该 token 能读取这个目录。
-3. 先执行 `/网盘 ls`，确认根目录读取正常。
-4. 再执行 `/网盘 info <文件名>`，确认单文件读取正常。
-5. 跑通后再考虑加搜索和上传。
+- 提示“插件未完成配置”：说明 `base_url` 或 `token` 为空。
+- 提示“网盘服务认证失败”：说明 token 无效、过期，或 OpenList 不接受当前认证方式。
+- 提示“无法连接到 OpenList 服务”：说明 AstrBot 所在机器无法访问你的 OpenList 地址，或反向代理、证书、端口有问题。
+- 提示“目标路径不存在”：说明查询路径写错，或该路径不在 `root_path` 之下。
+- 提示“没有检测到可上传的附件”：说明命令消息里没有图片或文件，或当前适配器没有把附件信息传给插件。
+- 提示“文件过大”：说明超过 `max_upload_mb` 限制。
 
 ## 后续可扩展
 
 - 文件搜索
-- 下载直链
-- 上传文件
+- 自定义文件名上传
+- 断点续传或任务上传

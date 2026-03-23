@@ -1,8 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from posixpath import normpath
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -58,10 +59,7 @@ class OpenListClient:
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=max(1, int(config.timeout_seconds)),
-            headers={
-                "Authorization": config.token.strip(),
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": config.token.strip()},
         )
 
     async def close(self) -> None:
@@ -107,12 +105,51 @@ class OpenListClient:
             raise OpenListError("OpenList 返回的文件数据格式不正确。")
         return data
 
-    async def _post_json(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+    async def upload_bytes(
+        self,
+        directory_path: str,
+        filename: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+        as_task: bool = False,
+    ) -> tuple[str, dict[str, Any]]:
+        safe_name = (filename or "upload.bin").replace("\\", "/").split("/")[-1].strip()
+        if not safe_name or safe_name in {".", ".."}:
+            raise InvalidPathError("文件名不合法。")
+
+        target_path = directory_path.rstrip("/") + "/" + safe_name if directory_path != "/" else "/" + safe_name
+        headers = {
+            "Authorization": self._config.token.strip(),
+            "File-Path": quote(target_path, safe="/"),
+            "Content-Length": str(len(content)),
+        }
+        if as_task:
+            headers["As-Task"] = "true"
+
+        files = {"file": (safe_name, content, content_type or "application/octet-stream")}
+
         try:
-            response = await self._client.post(endpoint, json=payload)
+            response = await self._client.put("/api/fs/form", files=files, headers=headers)
         except httpx.HTTPError as exc:
             raise OpenListNetworkError(f"无法连接到 OpenList：{exc}") from exc
 
+        data = self._decode_response(response)
+        return target_path, data if isinstance(data, dict) else {}
+
+    async def _post_json(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            response = await self._client.post(
+                endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+        except httpx.HTTPError as exc:
+            raise OpenListNetworkError(f"无法连接到 OpenList：{exc}") from exc
+
+        data = self._decode_response(response)
+        return data if isinstance(data, dict) else {}
+
+    def _decode_response(self, response: httpx.Response) -> Any:
         if response.status_code in {401, 403}:
             raise OpenListAuthError("OpenList 认证失败。")
 
@@ -129,7 +166,7 @@ class OpenListClient:
         data = body.get("data")
 
         if code in (200, None):
-            return data if isinstance(data, dict) else {}
+            return data
 
         lower_message = message.lower()
         if code in {401, 403} or "auth" in lower_message or "token" in lower_message:

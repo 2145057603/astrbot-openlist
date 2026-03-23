@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
@@ -84,5 +84,20 @@ def format_file_info(path: str, info: dict[str, Any]) -> str:
     raw_url = info.get("raw_url") or info.get("url")
     if raw_url:
         lines.append(f"链接：{raw_url}")
+
+    return "\n".join(lines)
+
+
+def format_upload_result(target_path: str, payload: dict[str, Any]) -> str:
+    task = payload.get("task") if isinstance(payload, dict) else None
+    lines = ["上传成功。", f"目标路径：{target_path}"]
+
+    if isinstance(task, dict):
+        task_id = task.get("id")
+        status = task.get("status")
+        if task_id:
+            lines.append(f"任务 ID：{task_id}")
+        if status:
+            lines.append(f"任务状态：{status}")
 
     return "\n".join(lines)
