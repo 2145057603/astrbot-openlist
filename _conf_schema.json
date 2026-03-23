@@ -1,4 +1,4 @@
-﻿{
+{
   "base_url": {
     "description": "OpenList 服务地址，例如 https://pan.example.com",
     "type": "string",

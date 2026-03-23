@@ -1,4 +1,4 @@
-﻿# astrbot-openlist
+# astrbot-openlist
 
 通过 AstrBot 读取自建 OpenList 网盘中的目录、文件信息，并支持基础上传。
 
