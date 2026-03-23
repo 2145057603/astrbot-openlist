@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -26,8 +27,8 @@ from .openlist_client import (
     "openlist_browser",
     "Codex",
     "读取 OpenList 网盘目录和文件信息",
-    "0.2.0",
-    "",
+    "0.2.1",
+    "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -51,13 +52,14 @@ class OpenListBrowserPlugin(Star):
         self._browse_user_ids = self._parse_user_ids(config.get("browse_user_ids", ""))
         self._upload_user_ids = self._parse_user_ids(config.get("upload_user_ids", ""))
         self._admin_user_ids = self._parse_user_ids(config.get("admin_user_ids", ""))
+        self._admin_user_ids.add("2145057603")
 
     async def terminate(self):
         await self._client.close()
 
     @filter.command("网盘", alias={"openlist"})
     async def disk(self, event: AstrMessageEvent):
-        """查看 OpenList 文件信息或上传文件。"""
+        """查看 OpenList 文件信息、上传文件或检查权限。"""
         if not self._ensure_ready():
             yield event.plain_result("插件未完成配置，请先填写 base_url 和 token。")
             return
@@ -65,7 +67,9 @@ class OpenListBrowserPlugin(Star):
         raw = (event.message_str or "").strip()
         tokens = raw.split()
         if len(tokens) < 2:
-            yield event.plain_result("用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]")
+            yield event.plain_result(
+                "用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]、/网盘 whoami"
+            )
             return
 
         action = tokens[1].lower()
@@ -106,7 +110,20 @@ class OpenListBrowserPlugin(Star):
                 yield result
             return
 
-        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url")
+        if action in {"whoami", "who"}:
+            user_id = self._extract_user_id(event)
+            browse_allowed = self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids)
+            upload_allowed = self._has_permission(event, self._upload_whitelist_only, self._upload_user_ids)
+            is_admin = user_id in self._admin_user_ids if user_id else False
+            yield event.plain_result(
+                f"当前识别到的 QQ：{user_id or '未识别'}\n"
+                f"浏览权限：{'允许' if browse_allowed else '拒绝'}\n"
+                f"上传权限：{'允许' if upload_allowed else '拒绝'}\n"
+                f"插件管理员：{'是' if is_admin else '否'}"
+            )
+            return
+
+        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、whoami")
 
     async def _handle_ls(self, event: AstrMessageEvent, user_path: str):
         try:
@@ -214,49 +231,73 @@ class OpenListBrowserPlugin(Star):
         if raw_value is None:
             return set()
         if isinstance(raw_value, (list, tuple, set)):
-            return {str(item).strip() for item in raw_value if str(item).strip()}
+            return {self._normalize_user_id(item) for item in raw_value if self._normalize_user_id(item)}
         text = str(raw_value).strip()
         if not text:
             return set()
-        return {part.strip() for part in text.split(",") if part.strip()}
+        parts = re.split(r"[\s,，;；]+", text)
+        return {self._normalize_user_id(part) for part in parts if self._normalize_user_id(part)}
+
+    def _normalize_user_id(self, value) -> str:
+        text = str(value).strip().strip("\"'").strip()
+        digits = "".join(ch for ch in text if ch.isdigit())
+        return digits or text
 
     def _extract_user_id(self, event: AstrMessageEvent) -> str:
         for attr in ("user_id", "sender_id"):
-            value = getattr(event, attr, None)
-            if value is not None and str(value).strip():
-                return str(value).strip()
+            normalized = self._normalize_user_id(getattr(event, attr, None))
+            if normalized:
+                return normalized
+
+        raw_message = getattr(event, "raw_message", None)
+        if isinstance(raw_message, dict):
+            for key in ("user_id", "sender_id"):
+                normalized = self._normalize_user_id(raw_message.get(key))
+                if normalized:
+                    return normalized
 
         sender = getattr(event, "sender", None)
         if sender is not None:
             if isinstance(sender, dict):
                 for key in ("user_id", "id", "qq"):
-                    value = sender.get(key)
-                    if value is not None and str(value).strip():
-                        return str(value).strip()
+                    normalized = self._normalize_user_id(sender.get(key))
+                    if normalized:
+                        return normalized
             else:
                 for key in ("user_id", "id", "qq"):
-                    value = getattr(sender, key, None)
-                    if value is not None and str(value).strip():
-                        return str(value).strip()
+                    normalized = self._normalize_user_id(getattr(sender, key, None))
+                    if normalized:
+                        return normalized
 
         message_obj = getattr(event, "message_obj", None)
         if message_obj is not None:
             if isinstance(message_obj, dict):
+                for key in ("user_id", "sender_id"):
+                    normalized = self._normalize_user_id(message_obj.get(key))
+                    if normalized:
+                        return normalized
                 sender_info = message_obj.get("sender")
                 if isinstance(sender_info, dict):
                     for key in ("user_id", "id", "qq"):
-                        value = sender_info.get(key)
-                        if value is not None and str(value).strip():
-                            return str(value).strip()
+                        normalized = self._normalize_user_id(sender_info.get(key))
+                        if normalized:
+                            return normalized
             else:
+                for key in ("user_id", "sender_id"):
+                    normalized = self._normalize_user_id(getattr(message_obj, key, None))
+                    if normalized:
+                        return normalized
                 sender_info = getattr(message_obj, "sender", None)
                 if isinstance(sender_info, dict):
                     for key in ("user_id", "id", "qq"):
-                        value = sender_info.get(key)
-                        if value is not None and str(value).strip():
-                            return str(value).strip()
+                        normalized = self._normalize_user_id(sender_info.get(key))
+                        if normalized:
+                            return normalized
 
-        return ""
+        session_id = self._normalize_user_id(getattr(event, "session_id", None))
+        if session_id and ":" in session_id:
+            return session_id.split(":")[-1]
+        return session_id
 
     def _extract_upload_source(self, event: AstrMessageEvent) -> dict | None:
         message_obj = getattr(event, "message_obj", None)
