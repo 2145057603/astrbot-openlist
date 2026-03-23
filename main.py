@@ -128,6 +128,28 @@ class OpenListBrowserPlugin(Star):
         if isinstance(role, str) and role.lower() in {"admin", "administrator", "owner"}:
             return True
 
+        sender = getattr(event, "sender", None)
+        if sender is not None:
+            for attr in ("role", "permission"):
+                value = getattr(sender, attr, None)
+                if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
+                    return True
+
+            if isinstance(sender, dict):
+                for key in ("role", "permission"):
+                    value = sender.get(key)
+                    if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
+                        return True
+
+        message_obj = getattr(event, "message_obj", None)
+        if isinstance(message_obj, dict):
+            sender_info = message_obj.get("sender")
+            if isinstance(sender_info, dict):
+                for key in ("role", "permission"):
+                    value = sender_info.get(key)
+                    if isinstance(value, str) and value.lower() in {"admin", "administrator", "owner"}:
+                        return True
+
         return False
 
     def _friendly_error(self, exc: Exception) -> str:
