@@ -12,6 +12,8 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
 from .formatter import format_file_info, format_listing, format_upload_result, format_user_listing
+from .github_submitter import GitHubResult, GitHubSubmitter
+from .mod_post_light import PreparedSubmission, parse_submission_payload, prepare_submission
 from .openlist_client import (
     InvalidPathError,
     OpenListAuthError,
@@ -20,6 +22,23 @@ from .openlist_client import (
     OpenListError,
     OpenListNetworkError,
     OpenListNotFoundError,
+)
+
+SUBMISSION_HELP = (
+    "用法：/投稿 预览 或 /投稿 提交，然后在下一行开始填写内容。\n\n"
+    "示例：\n"
+    "/投稿 预览\n"
+    "标题: 示例模组\n"
+    "分类: card-skin\n"
+    "作者: Astro\n"
+    "简介: 这里填写不超过 300 字的简介\n"
+    "标签: 高清,重绘\n"
+    "下载地址: https://example.com/file.zip\n"
+    "封面: /covers/mods/card-skin/demo.webp\n"
+    "---\n"
+    "## 安装说明\n"
+    "1. 下载压缩包\n"
+    "2. 解压到 mods 文件夹\n"
 )
 
 
@@ -60,6 +79,16 @@ class OpenListBrowserPlugin(Star):
         self._temp_session_reject_message = str(
             config.get("temp_session_reject_message", "当前未开放临时会话权限。")
         ).strip() or "当前未开放临时会话权限。"
+        self._submit_whitelist_only = bool(config.get("submit_whitelist_only", True))
+        self._submit_user_ids = self._parse_user_ids(config.get("submit_user_ids", ""))
+        self._github_owner = str(config.get("github_repo_owner", "")).strip()
+        self._github_repo = str(config.get("github_repo_name", "")).strip()
+        self._github_token = str(config.get("github_token", "")).strip()
+        self._github_base_branch = str(config.get("github_base_branch", "main")).strip() or "main"
+        self._github_mode = str(config.get("github_mode", "pr")).strip().lower() or "pr"
+        self._content_dir = str(config.get("content_dir", "src/content/mods")).strip() or "src/content/mods"
+        self._submit_default_cover = str(config.get("submit_default_cover", "")).strip()
+        self._recent_uploads: dict[str, dict[str, str]] = {}
 
     async def terminate(self):
         await self._client.close()
@@ -176,6 +205,93 @@ class OpenListBrowserPlugin(Star):
             return
 
         yield event.plain_result(self._build_temp_session_help())
+
+    @filter.command("post", alias={"投稿", "modpost"})
+    async def post(self, event: AstrMessageEvent):
+        if self._is_private_event(event):
+            user_id = self._extract_user_id(event)
+            if not self._is_temp_session_allowed(user_id):
+                yield event.plain_result(self._temp_session_reject_message)
+                return
+
+        if not self._has_permission(event, self._submit_whitelist_only, self._submit_user_ids):
+            yield event.plain_result("当前投稿命令仅允许白名单用户使用。")
+            return
+
+        raw = (event.message_str or "").strip()
+        lines = raw.splitlines()
+        if not lines:
+            yield event.plain_result(SUBMISSION_HELP)
+            return
+
+        head_tokens = lines[0].strip().split(maxsplit=2)
+        if len(head_tokens) < 2:
+            yield event.plain_result(SUBMISSION_HELP)
+            return
+
+        action = head_tokens[1].lower()
+        payload_parts: list[str] = []
+        if len(head_tokens) > 2:
+            payload_parts.append(head_tokens[2])
+        if len(lines) > 1:
+            payload_parts.extend(lines[1:])
+        payload = "\n".join(payload_parts).strip()
+
+        if action in {"help", "帮助"}:
+            yield event.plain_result(SUBMISSION_HELP)
+            return
+
+        if action in {"recent", "最近上传"}:
+            recent = self._recent_uploads.get(self._recent_upload_key(event))
+            if not recent:
+                yield event.plain_result("当前没有可复用的最近上传记录。")
+                return
+            yield event.plain_result(
+                f"最近上传：\n路径：{recent.get('path', '-')}\n链接：{recent.get('url', '-')}"
+            )
+            return
+
+        if action not in {"preview", "预览", "submit", "提交"}:
+            yield event.plain_result(SUBMISSION_HELP)
+            return
+
+        if not payload:
+            yield event.plain_result(SUBMISSION_HELP)
+            return
+
+        try:
+            draft = parse_submission_payload(
+                payload,
+                default_cover=self._submit_default_cover,
+                fallback_download_url=self._latest_upload_url(event),
+            )
+            prepared = prepare_submission(draft, self._content_dir)
+        except Exception as exc:
+            yield event.plain_result(f"投稿内容解析失败：{exc}")
+            return
+
+        if action in {"preview", "预览"}:
+            yield event.plain_result(self._format_submission_preview(prepared))
+            return
+
+        if not self._submission_ready():
+            yield event.plain_result(
+                "插件未完成 GitHub 配置，请先填写 github_repo_owner、github_repo_name 和 github_token。"
+            )
+            return
+
+        if self._github_mode != "pr" and self._extract_user_id(event) not in self._admin_user_ids:
+            yield event.plain_result("当前只允许管理员直接发布到目标分支。")
+            return
+
+        try:
+            result = await self._publish_submission(prepared)
+        except Exception as exc:
+            logger.warning("GitHub submission failed: %s", exc)
+            yield event.plain_result(f"提交失败：{exc}")
+            return
+
+        yield event.plain_result(self._format_publish_result(result))
 
     @filter.command("wp", alias={"网盘", "openlist"})
     async def disk(self, event: AstrMessageEvent):
@@ -300,6 +416,7 @@ class OpenListBrowserPlugin(Star):
                 return
             filename, content, content_type = await self._load_source_content(source)
             target_path, payload = await self._client.upload_bytes(directory_path, filename, content, content_type)
+            await self._remember_recent_upload(event, target_path)
             yield event.plain_result(format_upload_result(target_path, payload))
         except (
             InvalidPathError,
@@ -333,6 +450,7 @@ class OpenListBrowserPlugin(Star):
             source = {"kind": "url", "url": url, "name": self._guess_name_from_url(url)}
             filename, content, content_type = await self._load_source_content(source)
             target_path, payload = await self._client.upload_bytes(directory_path, filename, content, content_type)
+            await self._remember_recent_upload(event, target_path)
             yield event.plain_result(format_upload_result(target_path, payload))
         except (
             InvalidPathError,
@@ -483,11 +601,13 @@ class OpenListBrowserPlugin(Star):
 
     def _is_temp_session_allowed(self, user_id: str) -> bool:
         if not self._temp_session_enabled:
-            return False
-        if not self._temp_session_whitelist_only:
             return True
         if not user_id:
             return False
+        if user_id in self._admin_user_ids:
+            return True
+        if not self._temp_session_whitelist_only:
+            return True
         return user_id in self._temp_session_user_ids
 
     def _is_private_event(self, event: AstrMessageEvent) -> bool:
@@ -816,6 +936,82 @@ class OpenListBrowserPlugin(Star):
         parsed = urlparse(url)
         name = Path(parsed.path).name
         return name or "upload.bin"
+
+    def _submission_ready(self) -> bool:
+        return bool(self._github_owner and self._github_repo and self._github_token)
+
+    def _recent_upload_key(self, event: AstrMessageEvent) -> str:
+        user_id = self._extract_user_id(event)
+        if user_id:
+            return user_id
+        return str(getattr(event, "session_id", "default"))
+
+    async def _remember_recent_upload(self, event: AstrMessageEvent, target_path: str) -> None:
+        url = ""
+        try:
+            info = await self._client.get_info(target_path)
+            url = str(info.get("raw_url") or info.get("url") or "").strip()
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Recent upload lookup failed: %s", exc)
+        self._recent_uploads[self._recent_upload_key(event)] = {
+            "path": target_path,
+            "url": url,
+        }
+
+    def _latest_upload_url(self, event: AstrMessageEvent) -> str:
+        recent = self._recent_uploads.get(self._recent_upload_key(event)) or {}
+        return str(recent.get("url") or "").strip()
+
+    def _format_submission_preview(self, prepared: PreparedSubmission) -> str:
+        return (
+            "投稿预览：\n"
+            f"标题：{prepared.draft.title}\n"
+            f"分类：{prepared.draft.category}\n"
+            f"Markdown：{prepared.markdown_path}\n\n"
+            f"{prepared.markdown_text}"
+        )
+
+    async def _publish_submission(self, prepared: PreparedSubmission) -> GitHubResult:
+        client = GitHubSubmitter(self._github_owner, self._github_repo, self._github_token)
+        branch = self._github_base_branch
+        if self._github_mode == "pr":
+            branch = f"bot/post-{prepared.draft.resolved_slug()}"
+            await client.ensure_branch(branch, self._github_base_branch)
+
+        markdown_sha = await client.get_file_sha(prepared.markdown_path, branch)
+        commit_sha = await client.put_file(
+            prepared.markdown_path,
+            branch,
+            prepared.markdown_text,
+            f"Add mod entry: {prepared.draft.title}",
+            sha=markdown_sha,
+        )
+
+        pr_url = None
+        if self._github_mode == "pr":
+            pr_url = await client.create_pr(
+                title=f"Add mod entry: {prepared.draft.title}",
+                head=branch,
+                base=self._github_base_branch,
+                body=(
+                    "Automated submission from AstrBot.\n\n"
+                    f"- Title: {prepared.draft.title}\n"
+                    f"- Category: {prepared.draft.category}\n"
+                    f"- Author: {prepared.draft.author}\n"
+                ),
+            )
+
+        return GitHubResult(branch=branch, commit_sha=commit_sha, pull_request_url=pr_url)
+
+    def _format_publish_result(self, result: GitHubResult) -> str:
+        lines = [
+            "提交成功。",
+            f"分支：{result.branch}",
+            f"Commit：{result.commit_sha or ''}",
+        ]
+        if result.pull_request_url:
+            lines.append(f"PR：{result.pull_request_url}")
+        return "\n".join(lines)
 
     def _friendly_error(self, exc: Exception) -> str:
         if isinstance(exc, InvalidPathError):
