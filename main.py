@@ -179,6 +179,12 @@ class OpenListBrowserPlugin(Star):
 
     @filter.command("wp", alias={"网盘", "openlist"})
     async def disk(self, event: AstrMessageEvent):
+        if self._is_private_event(event):
+            user_id = self._extract_user_id(event)
+            if not self._is_temp_session_allowed(user_id):
+                yield event.plain_result(self._temp_session_reject_message)
+                return
+
         if not self._ensure_ready():
             yield event.plain_result("插件未完成配置，请先填写 base_url 和 token。")
             return
@@ -454,6 +460,41 @@ class OpenListBrowserPlugin(Star):
         if not user_id:
             return False
         return user_id in self._temp_session_user_ids
+
+    def _is_private_event(self, event: AstrMessageEvent) -> bool:
+        for attr in ("group_id", "room_id", "channel_id"):
+            value = getattr(event, attr, None)
+            if value not in (None, "", 0, "0"):
+                return False
+
+        raw_message = getattr(event, "raw_message", None)
+        if isinstance(raw_message, dict):
+            if raw_message.get("group_id") not in (None, "", 0, "0"):
+                return False
+            message_type = str(raw_message.get("message_type") or raw_message.get("detail_type") or "").lower()
+            if "private" in message_type:
+                return True
+            if "group" in message_type:
+                return False
+
+        message_obj = getattr(event, "message_obj", None)
+        if isinstance(message_obj, dict):
+            if message_obj.get("group_id") not in (None, "", 0, "0"):
+                return False
+            message_type = str(message_obj.get("message_type") or message_obj.get("detail_type") or "").lower()
+            if "private" in message_type:
+                return True
+            if "group" in message_type:
+                return False
+
+        session_id = str(getattr(event, "session_id", "") or "").lower()
+        if session_id:
+            if "group" in session_id:
+                return False
+            if "private" in session_id or session_id.startswith("user:"):
+                return True
+
+        return True
 
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())
