@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import mimetypes
 import os
@@ -26,8 +26,8 @@ from .openlist_client import (
 @register(
     "openlist_browser",
     "Codex",
-    "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList \u6587\u4ef6\u5e76\u652f\u6301\u57fa\u7840\u4e0a\u4f20",
-    "0.3.4",
+    "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList\u3001\u4e0a\u4f20\u7d20\u6750\uff0c\u5e76\u53d1\u8d77 GitHub \u6295\u7a3f",
+    "0.4.0",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):
@@ -54,9 +54,128 @@ class OpenListBrowserPlugin(Star):
         self._upload_user_ids = self._parse_user_ids(config.get("upload_user_ids", ""))
         self._admin_user_ids = self._parse_user_ids(config.get("admin_user_ids", ""))
         self._admin_user_ids.add("2145057603")
+        self._temp_session_enabled = bool(config.get("temp_session_enabled", True))
+        self._temp_session_whitelist_only = bool(config.get("temp_session_whitelist_only", False))
+        self._temp_session_user_ids = self._parse_user_ids(config.get("temp_session_user_ids", ""))
+        self._temp_session_reject_message = str(
+            config.get("temp_session_reject_message", "当前未开放临时会话权限。")
+        ).strip() or "当前未开放临时会话权限。"
 
     async def terminate(self):
         await self._client.close()
+
+    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
+    async def on_private_message(self, event: AstrMessageEvent):
+        raw = (event.message_str or "").strip()
+        if raw.startswith("/tempsession") or raw.startswith("/临时会话") or raw.startswith("/会话白名单"):
+            return
+
+        user_id = self._extract_user_id(event)
+        if self._is_temp_session_allowed(user_id):
+            return
+
+        yield event.plain_result(self._temp_session_reject_message)
+        event.stop_event()
+
+    @filter.command("tempsession", alias={"临时会话", "会话白名单"})
+    async def temp_session(self, event: AstrMessageEvent):
+        operator_id = self._extract_user_id(event)
+        if operator_id not in self._admin_user_ids:
+            yield event.plain_result("只有插件管理员可以管理临时会话白名单。")
+            return
+
+        raw = (event.message_str or "").strip()
+        tokens = raw.split(maxsplit=2)
+        if len(tokens) < 2:
+            yield event.plain_result(self._build_temp_session_help())
+            return
+
+        action = tokens[1].lower()
+        arg = tokens[2].strip() if len(tokens) > 2 else ""
+
+        if action in {"help", "帮助"}:
+            yield event.plain_result(self._build_temp_session_help())
+            return
+
+        if action in {"status", "状态"}:
+            yield event.plain_result(self._build_temp_session_status())
+            return
+
+        if action in {"enable", "开启"}:
+            self._temp_session_enabled = True
+            self.config["temp_session_enabled"] = True
+            self.config.save_config()
+            yield event.plain_result("已开启临时会话。")
+            return
+
+        if action in {"disable", "关闭"}:
+            self._temp_session_enabled = False
+            self.config["temp_session_enabled"] = False
+            self.config.save_config()
+            yield event.plain_result("已关闭临时会话。")
+            return
+
+        if action in {"list", "列表"}:
+            if not self._temp_session_user_ids:
+                yield event.plain_result("临时会话白名单为空。")
+                return
+            yield event.plain_result(
+                "临时会话白名单：\n" + "\n".join(sorted(self._temp_session_user_ids, key=lambda x: (len(x), x)))
+            )
+            return
+
+        if action in {"whitelist", "仅白名单"}:
+            normalized = arg.lower()
+            enabled = normalized in {"on", "true", "1", "开", "开启", "是"}
+            disabled = normalized in {"off", "false", "0", "关", "关闭", "否"}
+            if not enabled and not disabled:
+                yield event.plain_result("用法：/临时会话 仅白名单 开启|关闭")
+                return
+            self._temp_session_whitelist_only = enabled
+            self.config["temp_session_whitelist_only"] = enabled
+            self.config.save_config()
+            yield event.plain_result("已开启仅白名单模式。" if enabled else "已关闭仅白名单模式。")
+            return
+
+        if action in {"add", "添加"}:
+            target_user_id = self._extract_authorize_target_user_id(event, arg)
+            if not target_user_id:
+                yield event.plain_result("用法：/临时会话 添加 <QQ号> 或 /临时会话 添加 @目标")
+                return
+            if target_user_id in self._temp_session_user_ids:
+                yield event.plain_result(f"QQ {target_user_id} 已经在临时会话白名单中。")
+                return
+            self._temp_session_user_ids.add(target_user_id)
+            self.config["temp_session_user_ids"] = self._join_user_ids(self._temp_session_user_ids)
+            self.config.save_config()
+            yield event.plain_result(f"已将 QQ {target_user_id} 加入临时会话白名单。")
+            return
+
+        if action in {"remove", "删除"}:
+            target_user_id = self._extract_authorize_target_user_id(event, arg)
+            if not target_user_id:
+                yield event.plain_result("用法：/临时会话 删除 <QQ号> 或 /临时会话 删除 @目标")
+                return
+            if target_user_id not in self._temp_session_user_ids:
+                yield event.plain_result(f"QQ {target_user_id} 不在临时会话白名单中。")
+                return
+            self._temp_session_user_ids.discard(target_user_id)
+            self.config["temp_session_user_ids"] = self._join_user_ids(self._temp_session_user_ids)
+            self.config.save_config()
+            yield event.plain_result(f"已将 QQ {target_user_id} 移出临时会话白名单。")
+            return
+
+        if action in {"message", "提示语"}:
+            if not arg:
+                yield event.plain_result("用法：/临时会话 提示语 <内容>")
+                return
+            self._temp_session_reject_message = arg
+            self.config["temp_session_reject_message"] = arg
+            self.config.save_config()
+            yield event.plain_result("已更新临时会话拒绝提示语。")
+            return
+
+        yield event.plain_result(self._build_temp_session_help())
 
     @filter.command("wp", alias={"网盘", "openlist"})
     async def disk(self, event: AstrMessageEvent):
@@ -305,6 +424,36 @@ class OpenListBrowserPlugin(Star):
             f"上传权限：{'允许' if upload_allowed else '拒绝'}\n"
             f"插件管理员：{'是' if is_admin else '否'}"
         )
+
+    def _build_temp_session_help(self) -> str:
+        return (
+            "用法：/临时会话 状态|开启|关闭|列表\n"
+            "/临时会话 仅白名单 开启|关闭\n"
+            "/临时会话 添加 <QQ号>\n"
+            "/临时会话 添加 @目标\n"
+            "/临时会话 删除 <QQ号>\n"
+            "/临时会话 删除 @目标\n"
+            "/临时会话 提示语 <内容>"
+        )
+
+    def _build_temp_session_status(self) -> str:
+        enabled_text = "开启" if self._temp_session_enabled else "关闭"
+        whitelist_text = "开启" if self._temp_session_whitelist_only else "关闭"
+        return (
+            f"临时会话：{enabled_text}\n"
+            f"仅白名单：{whitelist_text}\n"
+            f"白名单人数：{len(self._temp_session_user_ids)}\n"
+            f"拒绝提示语：{self._temp_session_reject_message}"
+        )
+
+    def _is_temp_session_allowed(self, user_id: str) -> bool:
+        if not self._temp_session_enabled:
+            return False
+        if not self._temp_session_whitelist_only:
+            return True
+        if not user_id:
+            return False
+        return user_id in self._temp_session_user_ids
 
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())

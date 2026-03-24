@@ -70,10 +70,81 @@
     "type": "string",
     "default": "2145057603"
   },
+  "submit_whitelist_only": {
+    "description": "\u6295\u7a3f\u547d\u4ee4\u662f\u5426\u4ec5\u767d\u540d\u5355\u53ef\u7528",
+    "type": "bool",
+    "default": true
+  },
+  "submit_user_ids": {
+    "description": "\u6295\u7a3f\u767d\u540d\u5355 QQ\uff0c\u591a\u4e2a\u53ef\u7528\u9017\u53f7\u6216\u7a7a\u683c\u5206\u9694",
+    "type": "string",
+    "default": "2145057603"
+  },
+  "github_repo_owner": {
+    "description": "GitHub \u4ed3\u5e93 owner",
+    "type": "string",
+    "default": ""
+  },
+  "github_repo_name": {
+    "description": "GitHub \u4ed3\u5e93 name",
+    "type": "string",
+    "default": ""
+  },
+  "github_token": {
+    "description": "GitHub Personal Access Token",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true
+  },
+  "github_base_branch": {
+    "description": "GitHub \u76ee\u6807\u57fa\u7840\u5206\u652f",
+    "type": "string",
+    "default": "main"
+  },
+  "github_mode": {
+    "description": "GitHub \u63d0\u4ea4\u6a21\u5f0f\uff0cpr \u6216 direct",
+    "type": "string",
+    "default": "pr"
+  },
+  "content_dir": {
+    "description": "\u6a21\u7ec4 Markdown \u8f93\u51fa\u76ee\u5f55",
+    "type": "string",
+    "default": "src/content/mods"
+  },
+  "cover_dir": {
+    "description": "\u5c01\u9762\u56fe\u8f93\u51fa\u76ee\u5f55",
+    "type": "string",
+    "default": "public/covers/mods"
+  },
+  "image_dir": {
+    "description": "\u9884\u89c8\u56fe\u8f93\u51fa\u76ee\u5f55",
+    "type": "string",
+    "default": "public/images/mods"
+  },
   "authorization_code": {
     "description": "\u7528\u6237\u81ea\u52a9\u6388\u6743\u53e3\u4ee4\uff0c\u7559\u7a7a\u8868\u793a\u5173\u95ed\u53e3\u4ee4\u6388\u6743",
     "type": "string",
     "default": "",
     "obvious_hint": true
+  },
+  "temp_session_enabled": {
+    "description": "\u662f\u5426\u542f\u7528\u4e34\u65f6\u4f1a\u8bdd",
+    "type": "bool",
+    "default": true
+  },
+  "temp_session_whitelist_only": {
+    "description": "\u4e34\u65f6\u4f1a\u8bdd\u662f\u5426\u4ec5\u767d\u540d\u5355\u53ef\u7528",
+    "type": "bool",
+    "default": false
+  },
+  "temp_session_user_ids": {
+    "description": "\u4e34\u65f6\u4f1a\u8bdd\u767d\u540d\u5355 QQ\uff0c\u591a\u4e2a\u53ef\u7528\u9017\u53f7\u6216\u7a7a\u683c\u5206\u9694",
+    "type": "string",
+    "default": ""
+  },
+  "temp_session_reject_message": {
+    "description": "\u4e0d\u5728\u4e34\u65f6\u4f1a\u8bdd\u767d\u540d\u5355\u65f6\u7684\u63d0\u793a\u8bed",
+    "type": "string",
+    "default": "\u5f53\u524d\u672a\u5f00\u653e\u4e34\u65f6\u4f1a\u8bdd\u6743\u9650\u3002"
   }
 }

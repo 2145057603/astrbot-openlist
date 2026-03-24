@@ -12,5 +12,19 @@
   "upload_whitelist_only": true,
   "browse_user_ids": "2145057603",
   "upload_user_ids": "2145057603",
-  "admin_user_ids": "2145057603"
+  "admin_user_ids": "2145057603",
+  "submit_whitelist_only": true,
+  "submit_user_ids": "2145057603",
+  "github_repo_owner": "2145057603",
+  "github_repo_name": "sts2-visual-pack",
+  "github_token": "your-github-token",
+  "github_base_branch": "main",
+  "github_mode": "pr",
+  "content_dir": "src/content/mods",
+  "cover_dir": "public/covers/mods",
+  "image_dir": "public/images/mods",
+  "temp_session_enabled": true,
+  "temp_session_whitelist_only": false,
+  "temp_session_user_ids": "",
+  "temp_session_reject_message": "当前未开放临时会话权限。"
 }
