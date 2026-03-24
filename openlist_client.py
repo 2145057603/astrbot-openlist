@@ -105,6 +105,21 @@ class OpenListClient:
             raise OpenListError("OpenList 返回的文件数据格式不正确。")
         return data
 
+    async def list_users(self) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get("/api/admin/user/list")
+        except httpx.HTTPError as exc:
+            raise OpenListNetworkError(f"无法连接到 OpenList：{exc}") from exc
+
+        data = self._decode_response(response)
+        if not isinstance(data, dict):
+            raise OpenListError("OpenList 返回的用户数据格式不正确。")
+
+        content = data.get("content") or []
+        if not isinstance(content, list):
+            raise OpenListError("OpenList 返回的用户数据格式不正确。")
+        return content
+
     async def upload_bytes(
         self,
         directory_path: str,

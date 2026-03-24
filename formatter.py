@@ -67,6 +67,28 @@ def format_listing(path: str, items: list[dict[str, Any]], max_items: int) -> st
     return "\n".join(lines)
 
 
+def format_user_listing(users: list[dict[str, Any]], max_items: int) -> str:
+    shown = users[:max_items]
+    lines = [f"普通用户：共 {len(users)} 个，显示前 {len(shown)} 个", ""]
+
+    if not shown:
+        lines.append("没有查询到普通用户。")
+        return "\n".join(lines)
+
+    for item in shown:
+        username = item.get("username") or item.get("name") or "(未命名)"
+        user_id = item.get("id", "-")
+        disabled = item.get("disabled")
+        status = "禁用" if disabled else "启用"
+        lines.append(f"- {username} | id={user_id} | {status}")
+
+    if len(users) > len(shown):
+        lines.append("")
+        lines.append(f"还有 {len(users) - len(shown)} 个未显示。")
+
+    return "\n".join(lines)
+
+
 def format_file_info(path: str, info: dict[str, Any]) -> str:
     is_dir = bool(info.get("is_dir"))
     lines = [

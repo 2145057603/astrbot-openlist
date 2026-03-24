@@ -11,7 +11,7 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from .formatter import format_file_info, format_listing, format_upload_result
+from .formatter import format_file_info, format_listing, format_upload_result, format_user_listing
 from .openlist_client import (
     InvalidPathError,
     OpenListAuthError,
@@ -192,9 +192,7 @@ class OpenListBrowserPlugin(Star):
         raw = (event.message_str or "").strip()
         tokens = raw.split()
         if len(tokens) < 2:
-            yield event.plain_result(
-                "用法：/wp ls [路径]、/wp info <路径>、/wp upload [目录]、/wp upload-url <URL> [目录]、/wp 授权 <口令>、/wp whoami、/wp test"
-            )
+            yield event.plain_result(self._build_wp_help(event))
             return
 
         action = tokens[1].lower()
@@ -249,7 +247,15 @@ class OpenListBrowserPlugin(Star):
                 yield result
             return
 
-        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、授权、whoami、test")
+        if action == "users":
+            if self._extract_user_id(event) not in self._admin_user_ids:
+                yield event.plain_result("不支持的子命令。")
+                return
+            async for result in self._handle_users(event):
+                yield result
+            return
+
+        yield event.plain_result(self._build_wp_help(event))
 
     async def _handle_ls(self, event: AstrMessageEvent, user_path: str):
         try:
@@ -419,6 +425,15 @@ class OpenListBrowserPlugin(Star):
             lines.append(f"失败原因：{self._friendly_error(exc)}")
         yield event.plain_result("\n".join(lines))
 
+    async def _handle_users(self, event: AstrMessageEvent):
+        try:
+            users = await self._client.list_users()
+            normal_users = [item for item in users if int(item.get("role", 0) or 0) == 0]
+            yield event.plain_result(format_user_listing(normal_users, self._max_list_items))
+        except (OpenListAuthError, OpenListNetworkError, OpenListError, ValueError) as exc:
+            logger.warning("OpenList users failed: %s", exc)
+            yield event.plain_result(self._friendly_error(exc))
+
     def _build_identity_report(self, event: AstrMessageEvent) -> str:
         user_id = self._extract_user_id(event)
         browse_allowed = self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids)
@@ -430,6 +445,20 @@ class OpenListBrowserPlugin(Star):
             f"上传权限：{'允许' if upload_allowed else '拒绝'}\n"
             f"插件管理员：{'是' if is_admin else '否'}"
         )
+
+    def _build_wp_help(self, event: AstrMessageEvent) -> str:
+        commands = [
+            "/wp ls [路径]",
+            "/wp info <路径>",
+            "/wp upload [目录]",
+            "/wp upload-url <URL> [目录]",
+            "/wp 授权 <QQ号或@目标>",
+            "/wp whoami",
+            "/wp test",
+        ]
+        if self._extract_user_id(event) in self._admin_user_ids:
+            commands.append("/wp users")
+        return "用法：" + "、".join(commands)
 
     def _build_temp_session_help(self) -> str:
         return (
