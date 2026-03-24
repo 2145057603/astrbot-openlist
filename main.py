@@ -635,6 +635,17 @@ class OpenListBrowserPlugin(Star):
                 return True
             if "group" in message_type:
                 return False
+        elif message_obj is not None:
+            group_id = getattr(message_obj, "group_id", None)
+            if group_id not in (None, "", 0, "0"):
+                return False
+            detail_type = str(
+                getattr(message_obj, "message_type", None) or getattr(message_obj, "detail_type", None) or ""
+            ).lower()
+            if "private" in detail_type:
+                return True
+            if "group" in detail_type:
+                return False
 
         session_id = str(getattr(event, "session_id", "") or "").lower()
         if session_id:
@@ -643,7 +654,7 @@ class OpenListBrowserPlugin(Star):
             if "private" in session_id or session_id.startswith("user:"):
                 return True
 
-        return True
+        return False
 
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())
