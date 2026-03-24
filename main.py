@@ -215,6 +215,38 @@ class OpenListBrowserPlugin(Star):
             yield event.plain_result(self._friendly_error(exc))
 
     async def _handle_authorize(self, event: AstrMessageEvent, arg: str):
+        operator_id = self._extract_user_id(event)
+        if not operator_id:
+            yield event.plain_result("未能识别当前 QQ 号，暂时无法执行授权。")
+            return
+        if operator_id not in self._admin_user_ids:
+            yield event.plain_result("只有插件管理员可以执行授权。")
+            return
+
+        target_user_id = self._extract_authorize_target_user_id(event, arg)
+        if target_user_id:
+            changed = False
+            if target_user_id not in self._browse_user_ids:
+                self._browse_user_ids.add(target_user_id)
+                changed = True
+            if target_user_id not in self._upload_user_ids:
+                self._upload_user_ids.add(target_user_id)
+                changed = True
+
+            self.config["browse_user_ids"] = self._join_user_ids(self._browse_user_ids)
+            self.config["upload_user_ids"] = self._join_user_ids(self._upload_user_ids)
+            self.config.save_config()
+
+            if changed:
+                yield event.plain_result(
+                    f"授权成功，已将 QQ {target_user_id} 加入浏览和上传白名单，并同步保存到插件配置。"
+                )
+            else:
+                yield event.plain_result(f"QQ {target_user_id} 已经在白名单中，无需重复授权。")
+            return
+
+        yield event.plain_result("用法：/wp 授权 <QQ号> 或 /wp 授权 @目标")
+        return
         user_id = self._extract_user_id(event)
         if not user_id:
             yield event.plain_result("未能识别当前 QQ 号，暂时无法授权。")
@@ -361,6 +393,82 @@ class OpenListBrowserPlugin(Star):
             normalized = self._normalize_user_id(getattr(sender, key, None))
             if normalized:
                 return normalized
+        return ""
+
+    def _extract_authorize_target_user_id(self, event: AstrMessageEvent, arg: str) -> str:
+        target_id = self._extract_at_target_user_id(event)
+        if target_id:
+            return target_id
+
+        if not arg:
+            return ""
+
+        cleaned = re.sub(r"^@+", "", str(arg).strip())
+        normalized = self._normalize_user_id(cleaned)
+        return normalized if normalized.isdigit() else ""
+
+    def _extract_at_target_user_id(self, event: AstrMessageEvent) -> str:
+        message_obj = getattr(event, "message_obj", None)
+        if message_obj is not None:
+            found = self._find_at_target_in_container(message_obj)
+            if found:
+                return found
+
+        message = getattr(event, "message", None)
+        found = self._find_at_target_in_container(message)
+        if found:
+            return found
+
+        raw_message = getattr(event, "raw_message", None)
+        return self._find_at_target_in_container(raw_message)
+
+    def _find_at_target_in_container(self, container) -> str:
+        if not container:
+            return ""
+
+        if isinstance(container, dict):
+            sender = container.get("sender")
+            if sender:
+                found = self._find_at_target_in_container(sender)
+                if found:
+                    return found
+
+            message = container.get("message")
+            if isinstance(message, list):
+                for segment in message:
+                    found = self._find_at_target_in_container(segment)
+                    if found:
+                        return found
+
+            seg_type = str(container.get("type") or "").lower()
+            if seg_type == "at":
+                data = container.get("data") or {}
+                for key in ("qq", "user_id", "id"):
+                    normalized = self._normalize_user_id(data.get(key))
+                    if normalized and normalized not in {"all", "0"}:
+                        return normalized
+            return ""
+
+        if isinstance(container, list):
+            for item in container:
+                found = self._find_at_target_in_container(item)
+                if found:
+                    return found
+            return ""
+
+        class_name = container.__class__.__name__.lower()
+        if class_name == "at":
+            for key in ("qq", "user_id", "id", "target"):
+                normalized = self._normalize_user_id(getattr(container, key, None))
+                if normalized and normalized not in {"all", "0"}:
+                    return normalized
+
+        for attr in ("message", "children", "segments"):
+            nested = getattr(container, attr, None)
+            if nested:
+                found = self._find_at_target_in_container(nested)
+                if found:
+                    return found
         return ""
 
     def _extract_upload_source(self, event: AstrMessageEvent) -> dict | None:
