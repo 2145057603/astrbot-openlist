@@ -10,7 +10,6 @@
   "max_upload_mb": 20,
   "browse_whitelist_only": false,
   "upload_whitelist_only": true,
-  "authorization_code": "your-secret-code",
   "browse_user_ids": "2145057603",
   "upload_user_ids": "2145057603",
   "admin_user_ids": "2145057603"
