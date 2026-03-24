@@ -111,6 +111,11 @@
     "type": "string",
     "default": "src/content/mods"
   },
+  "submit_default_cover": {
+    "description": "\u8f7b\u91cf\u6295\u7a3f\u9ed8\u8ba4\u5c01\u9762\u8def\u5f84\uff0c\u7559\u7a7a\u65f6\u9700\u5728\u6295\u7a3f\u6587\u672c\u91cc\u663e\u5f0f\u63d0\u4f9b",
+    "type": "string",
+    "default": ""
+  },
   "cover_dir": {
     "description": "\u5c01\u9762\u56fe\u8f93\u51fa\u76ee\u5f55",
     "type": "string",
@@ -146,5 +151,25 @@
     "description": "\u4e0d\u5728\u4e34\u65f6\u4f1a\u8bdd\u767d\u540d\u5355\u65f6\u7684\u63d0\u793a\u8bed",
     "type": "string",
     "default": "\u5f53\u524d\u672a\u5f00\u653e\u4e34\u65f6\u4f1a\u8bdd\u6743\u9650\u3002"
+  },
+  "register_enabled": {
+    "description": "\u662f\u5426\u5f00\u653e QQ \u53f7\u6ce8\u518c OpenList \u666e\u901a\u7528\u6237",
+    "type": "bool",
+    "default": true
+  },
+  "register_base_path": {
+    "description": "\u65b0\u6ce8\u518c\u7528\u6237\u7684 OpenList \u6839\u76ee\u5f55",
+    "type": "string",
+    "default": "/"
+  },
+  "register_permission": {
+    "description": "\u65b0\u6ce8\u518c\u7528\u6237\u7684 permission \u503c",
+    "type": "int",
+    "default": 60
+  },
+  "register_password_length": {
+    "description": "\u6ce8\u518c\u65f6\u968f\u673a\u751f\u6210\u7684\u521d\u59cb\u5bc6\u7801\u957f\u5ea6",
+    "type": "int",
+    "default": 12
   }
 }

@@ -120,6 +120,25 @@ class OpenListClient:
             raise OpenListError("OpenList 返回的用户数据格式不正确。")
         return content
 
+    async def create_user(
+        self,
+        username: str,
+        password: str,
+        base_path: str = "/",
+        permission: int = 60,
+    ) -> None:
+        payload = {
+            "id": 0,
+            "username": username,
+            "password": password,
+            "base_path": _normalize_path(base_path),
+            "role": 0,
+            "permission": int(permission),
+            "disabled": False,
+            "sso_id": "",
+        }
+        await self._post_json("/api/admin/user/create", payload)
+
     async def upload_bytes(
         self,
         directory_path: str,

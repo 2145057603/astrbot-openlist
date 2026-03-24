@@ -3,6 +3,8 @@
 import mimetypes
 import os
 import re
+import secrets
+import string
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -79,6 +81,10 @@ class OpenListBrowserPlugin(Star):
         self._temp_session_reject_message = str(
             config.get("temp_session_reject_message", "当前未开放临时会话权限。")
         ).strip() or "当前未开放临时会话权限。"
+        self._register_enabled = bool(config.get("register_enabled", True))
+        self._register_base_path = str(config.get("register_base_path", "/")).strip() or "/"
+        self._register_permission = int(config.get("register_permission", 60) or 60)
+        self._register_password_length = max(8, int(config.get("register_password_length", 12) or 12))
         self._submit_whitelist_only = bool(config.get("submit_whitelist_only", True))
         self._submit_user_ids = self._parse_user_ids(config.get("submit_user_ids", ""))
         self._github_owner = str(config.get("github_repo_owner", "")).strip()
@@ -96,7 +102,14 @@ class OpenListBrowserPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def on_private_message(self, event: AstrMessageEvent):
         raw = (event.message_str or "").strip()
-        if raw.startswith("/tempsession") or raw.startswith("/临时会话") or raw.startswith("/会话白名单"):
+        if (
+            raw.startswith("/tempsession")
+            or raw.startswith("/临时会话")
+            or raw.startswith("/会话白名单")
+            or raw.startswith("/注册网盘")
+            or raw.startswith("/网盘注册")
+            or raw.startswith("/olreg")
+        ):
             return
 
         user_id = self._extract_user_id(event)
@@ -205,6 +218,44 @@ class OpenListBrowserPlugin(Star):
             return
 
         yield event.plain_result(self._build_temp_session_help())
+
+    @filter.command("注册网盘", alias={"网盘注册", "olreg"})
+    async def register_openlist(self, event: AstrMessageEvent):
+        if not self._register_enabled:
+            yield event.plain_result("当前未开放网盘注册。")
+            return
+        if not self._is_private_event(event):
+            yield event.plain_result("请私聊机器人后再执行 /注册网盘，初始密码不会在群里显示。")
+            return
+
+        user_id = self._extract_user_id(event)
+        if not user_id or not user_id.isdigit():
+            yield event.plain_result("未能识别你的 QQ 号，暂时无法注册。")
+            return
+
+        try:
+            users = await self._client.list_users()
+            existing = self._find_normal_user_by_username(users, user_id)
+            if existing is not None:
+                yield event.plain_result(f"你的网盘账号已经存在，用户名：{user_id}")
+                return
+
+            password = self._generate_initial_password(self._register_password_length)
+            await self._client.create_user(
+                username=user_id,
+                password=password,
+                base_path=self._register_base_path,
+                permission=self._register_permission,
+            )
+            yield event.plain_result(
+                "OpenList 普通用户注册成功。\n"
+                f"用户名：{user_id}\n"
+                f"初始密码：{password}\n"
+                "请尽快前往 OpenList 修改密码。"
+            )
+        except (OpenListAuthError, OpenListNetworkError, OpenListError, ValueError) as exc:
+            logger.warning("OpenList register failed: %s", exc)
+            yield event.plain_result(self._friendly_error(exc))
 
     @filter.command("post", alias={"投稿", "modpost"})
     async def post(self, event: AstrMessageEvent):
@@ -598,6 +649,19 @@ class OpenListBrowserPlugin(Star):
             f"白名单人数：{len(self._temp_session_user_ids)}\n"
             f"拒绝提示语：{self._temp_session_reject_message}"
         )
+
+    def _generate_initial_password(self, length: int) -> str:
+        alphabet = string.ascii_letters + string.digits
+        return "".join(secrets.choice(alphabet) for _ in range(max(8, length)))
+
+    def _find_normal_user_by_username(self, users: list[dict[str, object]], username: str) -> dict[str, object] | None:
+        for item in users:
+            if str(item.get("username") or "").strip() != username:
+                continue
+            role = int(item.get("role", 0) or 0)
+            if role == 0:
+                return item
+        return None
 
     def _is_temp_session_allowed(self, user_id: str) -> bool:
         if not self._temp_session_enabled:

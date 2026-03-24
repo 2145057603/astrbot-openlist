@@ -2,6 +2,6 @@ name: astrbot_plugin_openlist_browser
 display_name: "\u5f00\u653e\u7f51\u76d8"
 author: Codex
 desc: "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList\u3001\u4e0a\u4f20\u7d20\u6750\uff0c\u5e76\u53d1\u8d77 GitHub \u6295\u7a3f"
-version: 0.4.0
+version: 0.4.1
 repo: https://github.com/2145057603/astrbot-openlist
 astrbot_version: ">=4.16,<5"
