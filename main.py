@@ -27,7 +27,7 @@ from .openlist_client import (
     "openlist_browser",
     "Codex",
     "读取 OpenList 网盘目录和文件信息",
-    "0.3.0",
+    "0.3.1",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):
@@ -69,7 +69,7 @@ class OpenListBrowserPlugin(Star):
         tokens = raw.split()
         if len(tokens) < 2:
             yield event.plain_result(
-                "用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]、/网盘 授权 <口令>、/网盘 whoami"
+                "用法：/网盘 ls [路径]、/网盘 info <路径>、/网盘 upload [目录]、/网盘 upload-url <URL> [目录]、/网盘 授权 <口令>、/网盘 whoami、/网盘 test"
             )
             return
 
@@ -117,19 +117,15 @@ class OpenListBrowserPlugin(Star):
             return
 
         if action in {"whoami", "who"}:
-            user_id = self._extract_user_id(event)
-            browse_allowed = self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids)
-            upload_allowed = self._has_permission(event, self._upload_whitelist_only, self._upload_user_ids)
-            is_admin = user_id in self._admin_user_ids if user_id else False
-            yield event.plain_result(
-                f"当前识别到的 QQ：{user_id or '未识别'}\n"
-                f"浏览权限：{'允许' if browse_allowed else '拒绝'}\n"
-                f"上传权限：{'允许' if upload_allowed else '拒绝'}\n"
-                f"插件管理员：{'是' if is_admin else '否'}"
-            )
+            yield event.plain_result(self._build_identity_report(event))
             return
 
-        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、授权、whoami")
+        if action == "test":
+            async for result in self._handle_test(event):
+                yield result
+            return
+
+        yield event.plain_result("不支持的子命令。当前支持：ls、info、upload、upload-url、授权、whoami、test")
 
     async def _handle_ls(self, event: AstrMessageEvent, user_path: str):
         try:
@@ -256,6 +252,31 @@ class OpenListBrowserPlugin(Star):
             yield event.plain_result("授权成功，已将你加入浏览和上传白名单，并同步保存到插件设置。")
         else:
             yield event.plain_result("你已经在白名单中，无需重复授权。")
+
+    async def _handle_test(self, event: AstrMessageEvent):
+        lines = ["测试结果：", self._build_identity_report(event), ""]
+        try:
+            root_path = self._client.resolve_user_path("")
+            items = await self._client.list_dir(root_path)
+            lines.append("OpenList 连接：成功")
+            lines.append(f"根目录：{root_path}")
+            lines.append(f"根目录读取：成功，共 {len(items)} 项")
+        except Exception as exc:
+            lines.append(f"OpenList 连接：失败")
+            lines.append(f"失败原因：{self._friendly_error(exc)}")
+        yield event.plain_result("\n".join(lines))
+
+    def _build_identity_report(self, event: AstrMessageEvent) -> str:
+        user_id = self._extract_user_id(event)
+        browse_allowed = self._has_permission(event, self._browse_whitelist_only, self._browse_user_ids)
+        upload_allowed = self._has_permission(event, self._upload_whitelist_only, self._upload_user_ids)
+        is_admin = user_id in self._admin_user_ids if user_id else False
+        return (
+            f"当前识别到的 QQ：{user_id or '未识别'}\n"
+            f"浏览权限：{'允许' if browse_allowed else '拒绝'}\n"
+            f"上传权限：{'允许' if upload_allowed else '拒绝'}\n"
+            f"插件管理员：{'是' if is_admin else '否'}"
+        )
 
     def _ensure_ready(self) -> bool:
         return bool(str(self.config.get("base_url", "")).strip() and str(self.config.get("token", "")).strip())
