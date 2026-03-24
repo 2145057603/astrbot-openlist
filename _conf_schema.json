@@ -1,0 +1,79 @@
+{
+  "base_url": {
+    "description": "OpenList base URL, for example https://pan.example.com",
+    "type": "string",
+    "default": ""
+  },
+  "token": {
+    "description": "OpenList API token",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true
+  },
+  "root_path": {
+    "description": "Root path exposed to the bot",
+    "type": "string",
+    "default": "/"
+  },
+  "timeout_seconds": {
+    "description": "Request timeout in seconds",
+    "type": "int",
+    "default": 15
+  },
+  "default_per_page": {
+    "description": "Items fetched per list request",
+    "type": "int",
+    "default": 100
+  },
+  "max_list_items": {
+    "description": "Max items shown in chat for one list command",
+    "type": "int",
+    "default": 20
+  },
+  "upload_enabled": {
+    "description": "Enable upload commands",
+    "type": "bool",
+    "default": true
+  },
+  "allow_url_upload": {
+    "description": "Allow upload from URL",
+    "type": "bool",
+    "default": true
+  },
+  "max_upload_mb": {
+    "description": "Max upload size in MB",
+    "type": "int",
+    "default": 20
+  },
+  "browse_whitelist_only": {
+    "description": "Only allow browse commands for whitelisted users",
+    "type": "bool",
+    "default": false
+  },
+  "upload_whitelist_only": {
+    "description": "Only allow upload commands for whitelisted users",
+    "type": "bool",
+    "default": true
+  },
+  "browse_user_ids": {
+    "description": "Browse whitelist QQ numbers, split by comma or space",
+    "type": "string",
+    "default": "2145057603"
+  },
+  "upload_user_ids": {
+    "description": "Upload whitelist QQ numbers, split by comma or space",
+    "type": "string",
+    "default": "2145057603"
+  },
+  "admin_user_ids": {
+    "description": "Plugin admin QQ numbers, these users bypass limits",
+    "type": "string",
+    "default": "2145057603"
+  },
+  "authorization_code": {
+    "description": "Optional self-service authorization code, empty disables it",
+    "type": "string",
+    "default": "",
+    "obvious_hint": true
+  }
+}
