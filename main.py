@@ -26,8 +26,8 @@ from .openlist_client import (
 @register(
     "openlist_browser",
     "Codex",
-    "Read OpenList files in AstrBot",
-    "0.3.3",
+    "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList \u6587\u4ef6\u5e76\u652f\u6301\u57fa\u7840\u4e0a\u4f20",
+    "0.3.4",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):

@@ -1,7 +1,7 @@
 name: astrbot_plugin_openlist_browser
-display_name: OpenList Browser
+display_name: "\u5f00\u653e\u7f51\u76d8"
 author: Codex
-desc: Read OpenList files in AstrBot and support basic uploads.
-version: 0.3.3
+desc: "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList \u6587\u4ef6\u5e76\u652f\u6301\u57fa\u7840\u4e0a\u4f20"
+version: 0.3.4
 repo: https://github.com/2145057603/astrbot-openlist
 astrbot_version: ">=4.16,<5"
