@@ -26,8 +26,8 @@ from .openlist_client import (
 @register(
     "openlist_browser",
     "Codex",
-    "读取 OpenList 网盘目录和文件信息",
-    "0.3.2",
+    "Read OpenList files in AstrBot",
+    "0.3.3",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):
@@ -60,7 +60,6 @@ class OpenListBrowserPlugin(Star):
 
     @filter.command("wp", alias={"网盘", "openlist"})
     async def disk(self, event: AstrMessageEvent):
-        """查看 OpenList 文件信息、上传文件或检查权限。"""
         if not self._ensure_ready():
             yield event.plain_result("插件未完成配置，请先填写 base_url 和 token。")
             return
@@ -131,8 +130,7 @@ class OpenListBrowserPlugin(Star):
         try:
             resolved_path = self._client.resolve_user_path(user_path)
             items = await self._client.list_dir(resolved_path)
-            text = format_listing(resolved_path, items, self._max_list_items)
-            yield event.plain_result(text)
+            yield event.plain_result(format_listing(resolved_path, items, self._max_list_items))
         except (
             InvalidPathError,
             OpenListAuthError,
@@ -147,8 +145,7 @@ class OpenListBrowserPlugin(Star):
         try:
             resolved_path = self._client.resolve_user_path(user_path)
             info = await self._client.get_info(resolved_path)
-            text = format_file_info(resolved_path, info)
-            yield event.plain_result(text)
+            yield event.plain_result(format_file_info(resolved_path, info))
         except (
             InvalidPathError,
             OpenListAuthError,
@@ -170,7 +167,6 @@ class OpenListBrowserPlugin(Star):
             if not source:
                 yield event.plain_result("没有检测到可上传的附件。请把命令和图片或文件放在同一条消息里。")
                 return
-
             filename, content, content_type = await self._load_source_content(source)
             target_path, payload = await self._client.upload_bytes(directory_path, filename, content, content_type)
             yield event.plain_result(format_upload_result(target_path, payload))
@@ -254,7 +250,7 @@ class OpenListBrowserPlugin(Star):
             yield event.plain_result("你已经在白名单中，无需重复授权。")
 
     async def _handle_test(self, event: AstrMessageEvent):
-        lines = ["测试结果：", self._build_identity_report(event), ""]
+        lines = ["OpenList 测试："]
         try:
             root_path = self._client.resolve_user_path("")
             items = await self._client.list_dir(root_path)
@@ -311,8 +307,7 @@ class OpenListBrowserPlugin(Star):
     def _extract_user_id(self, event: AstrMessageEvent) -> str:
         message_obj = getattr(event, "message_obj", None)
         if message_obj is not None:
-            sender = getattr(message_obj, "sender", None)
-            extracted = self._extract_user_id_from_sender(sender)
+            extracted = self._extract_user_id_from_sender(getattr(message_obj, "sender", None))
             if extracted:
                 return extracted
             if isinstance(message_obj, dict):
@@ -329,8 +324,7 @@ class OpenListBrowserPlugin(Star):
                     if normalized:
                         return normalized
 
-        sender = getattr(event, "sender", None)
-        extracted = self._extract_user_id_from_sender(sender)
+        extracted = self._extract_user_id_from_sender(getattr(event, "sender", None))
         if extracted:
             return extracted
 
@@ -376,7 +370,6 @@ class OpenListBrowserPlugin(Star):
             found = self._find_source_in_chain(chains)
             if found:
                 return found
-
             if isinstance(message_obj, dict):
                 found = self._find_source_in_raw(message_obj)
                 if found:
@@ -393,7 +386,6 @@ class OpenListBrowserPlugin(Star):
     def _find_source_in_chain(self, chains) -> dict | None:
         if not chains:
             return None
-
         for item in chains:
             source = self._source_from_component(item)
             if source:
