@@ -48,7 +48,7 @@ SUBMISSION_HELP = (
     "openlist_browser",
     "Codex",
     "\u5728 AstrBot \u4e2d\u67e5\u770b OpenList\u3001\u4e0a\u4f20\u7d20\u6750\uff0c\u5e76\u53d1\u8d77 GitHub \u6295\u7a3f",
-    "0.4.0",
+    "0.4.1",
     "https://github.com/2145057603/astrbot-openlist",
 )
 class OpenListBrowserPlugin(Star):

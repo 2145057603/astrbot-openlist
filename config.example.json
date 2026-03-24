@@ -21,10 +21,16 @@
   "github_base_branch": "main",
   "github_mode": "pr",
   "content_dir": "src/content/mods",
+  "submit_default_cover": "/covers/mods/card-skin/default.webp",
   "cover_dir": "public/covers/mods",
   "image_dir": "public/images/mods",
+  "authorization_code": "",
   "temp_session_enabled": true,
   "temp_session_whitelist_only": false,
   "temp_session_user_ids": "",
-  "temp_session_reject_message": "当前未开放临时会话权限。"
+  "temp_session_reject_message": "当前未开放临时会话权限。",
+  "register_enabled": true,
+  "register_base_path": "/",
+  "register_permission": 60,
+  "register_password_length": 12
 }
